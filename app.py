@@ -17,10 +17,10 @@ data_mgr   = DataManager()
 
 # ── Sidebar ─────────────────────────────────────────────────────
 with st.sidebar:
-    st.title(" Interview Simulator")
+    st.title("🎯 Interview Simulator")
     st.divider()
 
-    page = st.radio("Navigate", [" Home", " Interview", " Report", " History"])
+    page = st.radio("Navigate", ["🏠 Home", "🎤 Interview", "📊 Report", "📚 History"])
     st.divider()
 
     st.subheader("Session Setup")
@@ -46,16 +46,32 @@ with st.sidebar:
 
 # ── AI evaluation ────────────────────────────────────────────────
 def ai_evaluate(question, answer, key):
-    prompt = f"""You are an expert interviewer. Evaluate this answer strictly and fairly.
+    prompt = f"""You are a strict and critical interviewer.
+Evaluate the answer VERY STRICTLY.
+If the answer is irrelevant, incorrect, or opposite to the question, give a LOW score (0-3).
+
+Evaluation criteria:
+- Relevance to the question
+- Correctness of concepts
+- Depth and clarity
+- Completeness
 
 Question Type: {question.qtype} | Difficulty: {question.difficulty}
 Question: {question.text}
 Answer: {answer}
 
+Also identify if the answer is:
+- Irrelevant
+- Contradictory
+- Incorrect
+
 Respond ONLY with valid JSON (no markdown):
 {{
   "score": <float 0-10>,
   "grade": "<Excellent|Good|Average|Needs Improvement>",
+  "is_irrelevant": <true|false>,
+  "is_contradictory": <true|false>,
+  "is_incorrect": <true|false>,
   "strengths": ["..."],
   "improvements": ["..."],
   "ideal_points": ["..."],
@@ -74,12 +90,18 @@ Respond ONLY with valid JSON (no markdown):
             text = text.split("```")[1].lstrip("json").strip()
         p = json.loads(text)
         return {
-            "score": float(p.get("score", 5)), "grade": p.get("grade", "Average"),
-            "strengths": p.get("strengths", []), "improvements": p.get("improvements", []),
-            "ideal_points": p.get("ideal_points", []),
-            "ai_feedback": p.get("overall_feedback", ""),
-            "tips": p.get("improvements", []), "ai_powered": True,
-            "word_count": len(answer.split()),
+            "score":            float(p.get("score", 5)),
+            "grade":            p.get("grade", "Average"),
+            "is_irrelevant":    p.get("is_irrelevant", False),
+            "is_contradictory": p.get("is_contradictory", False),
+            "is_incorrect":     p.get("is_incorrect", False),
+            "strengths":        p.get("strengths", []),
+            "improvements":     p.get("improvements", []),
+            "ideal_points":     p.get("ideal_points", []),
+            "ai_feedback":      p.get("overall_feedback", ""),
+            "tips":             p.get("improvements", []),
+            "ai_powered":       True,
+            "word_count":       len(answer.split()),
         }
     except Exception:
         return {}
@@ -190,6 +212,14 @@ elif "Interview" in page:
         st.progress(ev['score'] / 10)
 
         if ev.get("ai_powered"):
+            # ── Answer quality flags ──────────────────────────────
+            flags = []
+            if ev.get("is_irrelevant"):    flags.append("⚠️ Irrelevant")
+            if ev.get("is_contradictory"): flags.append("❌ Contradictory")
+            if ev.get("is_incorrect"):     flags.append("❌ Incorrect")
+            if flags:
+                st.error("**Answer Issues Detected:** " + "  |  ".join(flags))
+
             st.info(f"🤖 **AI Feedback:** {ev['ai_feedback']}")
             if ev.get("strengths"):
                 st.success("**✅ Strengths:**\n" + "\n".join(f"- {s}" for s in ev["strengths"]))
