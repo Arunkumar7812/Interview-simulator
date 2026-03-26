@@ -46,24 +46,28 @@ with st.sidebar:
 
 # ── AI evaluation ────────────────────────────────────────────────
 def ai_evaluate(question, answer, key):
-    prompt = f"""You are a strict and critical interviewer.
-Evaluate the answer VERY STRICTLY.
-If the answer is irrelevant, incorrect, or opposite to the question, give a LOW score (0-3).
+    prompt = f"""You are a strict and critical interviewer. Evaluate the answer VERY STRICTLY.
 
-Evaluation criteria:
-- Relevance to the question
-- Correctness of concepts
-- Depth and clarity
-- Completeness
+MOST IMPORTANT RULE:
+- If the answer is completely unrelated to the question topic, give score 0 to 2. No exceptions.
+- If the answer is about a different domain (e.g., HR answer to a Technical question), give score 0 to 2.
+- If the answer contains no relevant technical/domain keywords for the question, give score 0 to 2.
+- Only give a high score if the answer directly and correctly addresses the question.
+
+Evaluation criteria (in order of importance):
+1. Relevance — does the answer actually address this specific question?
+2. Correctness — are the concepts accurate?
+3. Depth & clarity — are details and examples provided?
+4. Completeness — are all key points covered?
 
 Question Type: {question.qtype} | Difficulty: {question.difficulty}
 Question: {question.text}
 Answer: {answer}
 
-Also identify if the answer is:
-- Irrelevant
-- Contradictory
-- Incorrect
+Identify if the answer is:
+- Irrelevant (completely off-topic or wrong domain)
+- Contradictory (says the opposite of what is correct)
+- Incorrect (factually wrong)
 
 Respond ONLY with valid JSON (no markdown):
 {{
@@ -192,7 +196,7 @@ elif "Interview" in page:
             st.warning("Write an answer before submitting.")
         else:
             with st.spinner("Evaluating…"):
-                ev = (ai_evaluate(q, answer, api_key) if use_ai and api_key else {}) or evaluator.evaluate(answer)
+                ev = (ai_evaluate(q, answer, api_key) if use_ai and api_key else {}) or evaluator.evaluate(answer, question=q)
             sess.record(q, answer, ev)
             st.session_state.last_eval = ev
             fetch_question()
