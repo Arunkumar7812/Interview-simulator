@@ -107,40 +107,99 @@ class QuestionBank:
 
 class Evaluator:
     """
-    Rule-based evaluator.
-    Used as a fallback when AI evaluation is unavailable.
-    Score is based on word count + keyword density.
+    Rule-based evaluator with topic relevance detection.
+    Penalises answers that don't match the question's domain.
     """
 
-    # Keywords that indicate a quality technical answer
     QUALITY_KEYWORDS = {
         "example", "because", "therefore", "however", "specifically",
         "complexity", "algorithm", "implementation", "trade-off", "advantage",
         "disadvantage", "performance", "scalable", "efficient", "alternatively",
     }
 
-    def evaluate(self, answer: str) -> dict:
-        words = answer.strip().split()
+    # Per question-type domain keywords — answer must contain at least one
+    DOMAIN_KEYWORDS = {
+        "Technical": [
+            "python", "code", "function", "class", "object", "variable", "list",
+            "tuple", "dict", "array", "loop", "method", "library", "module",
+            "stack", "queue", "tree", "graph", "sort", "search", "api", "database",
+            "sql", "http", "thread", "memory", "pointer", "compile", "runtime",
+            "exception", "inheritance", "polymorphism", "encapsulation", "decorator",
+            "iterator", "generator", "lambda", "recursion", "binary", "hash",
+        ],
+        "DSA": [
+            "array", "list", "stack", "queue", "tree", "graph", "heap", "hash",
+            "sort", "search", "complexity", "big-o", "o(n)", "o(log", "node",
+            "pointer", "linked", "binary", "depth", "breadth", "recursion",
+            "dynamic", "greedy", "backtrack", "divide", "conquer", "pivot",
+        ],
+        "System Design": [
+            "server", "database", "cache", "load", "scale", "api", "service",
+            "storage", "queue", "message", "cdn", "dns", "http", "rest",
+            "microservice", "monolith", "partition", "replica", "consistency",
+            "availability", "latency", "throughput", "sharding", "index",
+        ],
+        "HR": [
+            "team", "work", "project", "manager", "goal", "challenge", "skill",
+            "experience", "role", "company", "responsibility", "career", "growth",
+            "communication", "leadership", "conflict", "deadline", "motivat",
+            "collaborate", "feedback", "strength", "weakness", "achieve",
+        ],
+        "Behavioural": [
+            "situation", "task", "action", "result", "team", "challenge",
+            "project", "manager", "conflict", "deadline", "initiative",
+            "problem", "solution", "decision", "lead", "collaborat", "impact",
+        ],
+    }
+
+    def evaluate(self, answer: str, question=None) -> dict:
+        words     = answer.strip().split()
         word_count = len(words)
-        lower = answer.lower()
+        lower     = answer.lower()
 
-        keyword_hits = sum(1 for kw in self.QUALITY_KEYWORDS if kw in lower)
-        has_structure = any(p in answer for p in ["1.", "2.", "-", "•", "\n"])
+        # ── Relevance check ──────────────────────────────────────
+        is_irrelevant = False
+        if question and question.qtype in self.DOMAIN_KEYWORDS:
+            domain_kws = self.DOMAIN_KEYWORDS[question.qtype]
+            matched    = [kw for kw in domain_kws if kw in lower]
+            if not matched:
+                is_irrelevant = True
 
-        # Score out of 10
-        base = min(word_count / 5, 5)             # up to 5 pts from length
-        kw_bonus = min(keyword_hits * 0.5, 3)     # up to 3 pts from keywords
+        # If irrelevant — cap score at 2 immediately
+        if is_irrelevant:
+            return {
+                "score":         1.0,
+                "grade":         "Needs Improvement",
+                "color":         "#ef4444",
+                "word_count":    word_count,
+                "is_irrelevant": True,
+                "is_incorrect":  True,
+                "is_contradictory": False,
+                "tips": [
+                    "Your answer is completely unrelated to the question.",
+                    f"This is a {question.qtype} question — answer using relevant {question.qtype} concepts.",
+                    "Read the question carefully before answering.",
+                ],
+                "ai_powered": False,
+            }
+
+        # ── Normal scoring (only reached if relevant) ────────────
+        keyword_hits   = sum(1 for kw in self.QUALITY_KEYWORDS if kw in lower)
+        has_structure  = any(p in answer for p in ["1.", "2.", "-", "•", "\n"])
+
+        base            = min(word_count / 5, 5)
+        kw_bonus        = min(keyword_hits * 0.5, 3)
         structure_bonus = 1.5 if has_structure else 0
-        score = round(min(base + kw_bonus + structure_bonus, 10), 1)
+        score           = round(min(base + kw_bonus + structure_bonus, 10), 1)
 
         if score >= 8:
-            grade, color = "Excellent", "#22c55e"
+            grade = "Excellent"
         elif score >= 6:
-            grade, color = "Good", "#84cc16"
+            grade = "Good"
         elif score >= 4:
-            grade, color = "Average", "#f59e0b"
+            grade = "Average"
         else:
-            grade, color = "Needs Improvement", "#ef4444"
+            grade = "Needs Improvement"
 
         tips = []
         if word_count < 20:
@@ -151,12 +210,15 @@ class Evaluator:
             tips.append("Structure your answer with numbered points or bullet points.")
 
         return {
-            "score": score,
-            "grade": grade,
-            "color": color,
-            "word_count": word_count,
-            "tips": tips,
-            "ai_powered": False,
+            "score":            score,
+            "grade":            grade,
+            "color":            "#22c55e" if score >= 8 else "#84cc16" if score >= 6 else "#f59e0b" if score >= 4 else "#ef4444",
+            "word_count":       word_count,
+            "is_irrelevant":    False,
+            "is_incorrect":     False,
+            "is_contradictory": False,
+            "tips":             tips,
+            "ai_powered":       False,
         }
 
 
